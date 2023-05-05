@@ -1,88 +1,76 @@
-//
-//  ContentView.swift
-//  Yo
-//
-//  Created by JOSE MIGUEL FERRAZ GUEDES on 19/04/2023.
-//
-
 import SwiftUI
-import CoreData
 
 struct ContentView: View {
-    @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject var authManager: AuthManager
+    @ObservedObject var firestoreManager = FirestoreManager()
 
-    @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \Item.timestamp, ascending: true)],
-        animation: .default)
-    private var items: FetchedResults<Item>
+    @State private var newHabitName: String = ""
+
+    func updateHabit(_ habit: Habit) {
+        firestoreManager.updateHabit(habit: habit, userId: firestoreManager.userId!)
+    }
 
     var body: some View {
         NavigationView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp!, formatter: itemFormatter)")
-                    } label: {
-                        Text(item.timestamp!, formatter: itemFormatter)
+            ZStack {
+                VStack {
+                    HStack {
+                        TextField("New Habit", text: $newHabitName)
+                            .padding(8)
+                            .background(Color.gray.opacity(0.2))
+                            .cornerRadius(8)
+
+                        Button(action: {
+                            let habit = Habit(name: newHabitName, streak: 0, lastCompleted: nil)
+                            firestoreManager.addHabit(habit: habit, userId: firestoreManager.userId!)
+                            newHabitName = ""
+                        }) {
+                            Text("Add")
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color.black)
+                                .cornerRadius(8)
+                        }
                     }
-                }
-                .onDelete(perform: deleteItems)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                    .padding()
+
+                    List {
+                        ForEach(firestoreManager.habits) { habit in
+                            HabitRow(firestoreManager: firestoreManager, habit: habit, updateHabit: updateHabit)
+                        }
+                        .onDelete { indexSet in
+                            for index in indexSet {
+                                firestoreManager.deleteHabit(habit: firestoreManager.habits[index], userId: firestoreManager.userId!)
+                            }
+                        }
                     }
+                    Spacer()
                 }
+
+                VStack {
+                    Spacer()
+                    Image("logo3") // Replace with your actual logo image name
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 200, height: 200) // Adjust the size of the image here
+                }
+                .padding(.bottom, 16)
             }
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(context: viewContext)
-            newItem.timestamp = Date()
-
-            do {
-                try viewContext.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
-            }
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            offsets.map { items[$0] }.forEach(viewContext.delete)
-
-            do {
-                try viewContext.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
-            }
+            .navigationTitle("Yo! Let in good habits!")
+            .background(
+                Image("backgroundImageName") // Replace with your actual image name
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .edgesIgnoringSafeArea(.all)
+                    .frame(width: 200, height: 200)
+            )
         }
     }
 }
 
-private let itemFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateStyle = .short
-    formatter.timeStyle = .medium
-    return formatter
-}()
-
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView().environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
+        ContentView()
     }
 }
